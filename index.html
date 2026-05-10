@@ -36,7 +36,7 @@
             width: 100%;
             max-width: 900px;
         }
-        input {
+        input[type="date"], input[type="text"] {
             padding: 10px;
             border: 1px solid #444;
             border-radius: 6px;
@@ -87,6 +87,11 @@
         <span>至</span>
         <input type="date" id="endDate">
         <input type="text" id="keyword" placeholder="搜尋事件關鍵字">
+        
+        <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="onlyEvents" onchange="fetchData()"> 只顯示大事件
+        </label>
+
         <button onclick="fetchData()">查詢走勢</button>
     </div>
 
@@ -108,73 +113,141 @@
     <script>
         let priceChart = null;
 
-        // 網頁開啟時自動抓取一次
         window.onload = fetchData;
 
         async function fetchData() {
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
-            const keyword = document.getElementById('keyword').value;
+            const keyword = document.getElementById('keyword').value.trim().toLowerCase();
+            const onlyEvents = document.getElementById('onlyEvents').checked;
 
             const params = new URLSearchParams();
             if (startDate) params.append('startDate', startDate);
             if (endDate) params.append('endDate', endDate);
-            if (keyword) params.append('keyword', keyword);
 
             try {
-                // 使用相對路徑呼叫 API
                 const response = await fetch(`/api/gold?${params.toString()}`);
-                const data = await response.json();
+                const fullData = await response.json();
                 
                 const tbody = document.getElementById('resultBody');
                 tbody.innerHTML = ''; 
 
-                if (data.length === 0) {
+                if (fullData.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">此區間查無黃金資料</td></tr>';
                     if (priceChart) priceChart.destroy();
                     return;
                 }
 
-                data.forEach(row => {
+                // --- 前端過濾表格資料 ---
+                const tableData = fullData.filter(row => {
+                    const eventText = (row.event || "").toLowerCase();
+                    let match = true;
+                    if (onlyEvents && !row.event) match = false;
+                    if (keyword && !eventText.includes(keyword)) match = false;
+                    return match;
+                });
+
+                tableData.forEach(row => {
                     const tr = document.createElement('tr');
+                    let displayEvent = row.event || '-';
+                    if (keyword && row.event) {
+                        const reg = new RegExp(`(${keyword})`, "gi");
+                        displayEvent = row.event.replace(reg, `<span style="color:#FF4500; font-weight:bold;">$1</span>`);
+                    }
+
                     tr.innerHTML = `
                         <td>${row.date}</td>
                         <td class="price-text">$${row.price.toFixed(2)}</td>
-                        <td>${row.event}</td>
+                        <td>${displayEvent}</td>
                     `;
                     tbody.appendChild(tr);
                 });
 
-                renderChart(data);
+                // --- 畫圖表 ---
+                renderChart(fullData, keyword);
             } catch (e) {
                 console.error("API 連線失敗", e);
             }
         }
 
-        function renderChart(data) {
+        function renderChart(fullData, keyword) {
             const ctx = document.getElementById('priceChart').getContext('2d');
             if (priceChart) priceChart.destroy();
+
+            // ✨ 唯一修改區域：點點的外觀設計 ✨
+            const pointRadii = fullData.map(d => {
+                const eventText = (d.event || "").toLowerCase();
+                if (keyword && eventText.includes(keyword)) return 7;  // 關鍵字命中：大點
+                if (d.event) return 4;                                // 一般事件：中點
+                return 2;                                             // 一般日：小點 (維持可觸碰)
+            });
+
+            const pointBgColors = fullData.map(d => {
+                const eventText = (d.event || "").toLowerCase();
+                if (keyword && eventText.includes(keyword)) return '#FFFFFF'; // 命中：璀璨白
+                if (d.event) return '#FFD700';                                // 一般事件：亮金
+                return '#5A4D1A';                                             // 一般日：低調暗金 (不刺眼)
+            });
+
+            const pointBorderColors = fullData.map(d => {
+                const eventText = (d.event || "").toLowerCase();
+                if (keyword && eventText.includes(keyword)) return '#DAA520'; // 命中：加一圈金邊
+                if (d.event) return '#121212';                                // 一般事件：加背景色黑邊(增加立體感)
+                return 'transparent';                                         // 一般日：無邊框
+            });
+
+            const pointBorderWidths = fullData.map(d => {
+                const eventText = (d.event || "").toLowerCase();
+                if (keyword && eventText.includes(keyword)) return 3; 
+                if (d.event) return 2;                                
+                return 0;                                             
+            });
 
             priceChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: data.map(d => d.date),
+                    labels: fullData.map(d => d.date),
                     datasets: [{
-                        label: '黃金價格走勢',
-                        data: data.map(d => d.price),
+                        label: '黃金價格走勢 (USD)',
+                        data: fullData.map(d => d.price),
                         borderColor: '#FFD700',
                         backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                        borderWidth: 2,
                         fill: true,
-                        tension: 0.3
+                        tension: 0.1,
+                        // 套用新設計的點點參數
+                        pointRadius: pointRadii,
+                        pointBackgroundColor: pointBgColors,
+                        pointBorderColor: pointBorderColors,
+                        pointBorderWidth: pointBorderWidths,
+                        pointHoverRadius: 8,
+                        pointHoverBackgroundColor: '#FFFFFF',
+                        pointHoverBorderColor: '#DAA520',
+                        pointHitRadius: 10
                     }]
                 },
                 options: {
                     responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     scales: {
                         x: { ticks: { color: '#888' }, grid: { color: '#333' } },
                         y: { ticks: { color: '#888' }, grid: { color: '#333' } }
                     },
-                    plugins: { legend: { labels: { color: '#fff' } } }
+                    plugins: { 
+                        legend: { labels: { color: '#fff' } },
+                        tooltip: {
+                            callbacks: {
+                                // 完美保留原本的 Tooltip 邏輯
+                                afterLabel: function(context) {
+                                    const event = fullData[context.dataIndex].event;
+                                    return event ? '事件: ' + event : '';
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
