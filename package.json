@@ -1,0 +1,26 @@
+{
+  "name": "gold-chronicle",
+  "version": "1.0.0",
+  "description": "黃金走勢與事件追蹤系統 - GoldChronicle",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "sqlite3": "^5.1.7"
+  },
+  "keywords": [
+    "express",
+    "sqlite3",
+    "gold-price",
+    "azure"
+  ],
+  "author": "",
+  "license": "ISC"
+}

@@ -1,0 +1,64 @@
+openapi: 3.0.0
+info:
+  title: 金史紀 (GoldChronicle) API
+  version: 1.0.0
+  description: 查詢黃金歷史價格與潛在影響事件
+paths:
+  /api/gold:
+    get:
+      summary: 查詢黃金走勢與事件
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: 開始日期 (YYYY-MM-DD)
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: 結束日期 (YYYY-MM-DD)
+        - in: query
+          name: keyword
+          schema:
+            type: string
+          description: 縮小搜尋範圍的關鍵字 (針對事件)
+      responses:
+        '200':
+          description: 成功回傳資料
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    date:
+                      type: string
+                    price:
+                      type: number
+                    event:
+                      type: string
+    post:
+      summary: 手動新增黃金紀錄
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                price:
+                  type: number
+                event:
+                  type: string
+      responses:
+        '201':
+          description: 新增成功

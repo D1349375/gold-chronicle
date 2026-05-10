@@ -1,0 +1,4 @@
+node_modules/
+gold_data.db
+.env
+.DS_Store

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金史紀 | 黃金走勢與事件追蹤</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #121212;
+            color: #f5f5f5;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #FFD700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+            margin-bottom: 30px;
+        }
+        .search-box {
+            background: #1e1e1e;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(255, 215, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #333;
+            width: 100%;
+            max-width: 900px;
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #2a2a2a;
+            color: #fff;
+            outline: none;
+        }
+        input:focus { border-color: #FFD700; }
+        button {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #FFD700, #DAA520);
+            color: #121212;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,215,0,0.2); }
+        .chart-container {
+            width: 100%;
+            max-width: 960px;
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid #333;
+        }
+        table {
+            width: 100%;
+            max-width: 960px;
+            border-collapse: collapse;
+            background: #1e1e1e;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #2a2a2a; }
+        th { color: #FFD700; background: #111; }
+        .price-text { color: #4CAF50; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>金史紀 (GoldChronicle)</h1>
+    
+    <div class="search-box">
+        <input type="date" id="startDate">
+        <span>至</span>
+        <input type="date" id="endDate">
+        <input type="text" id="keyword" placeholder="搜尋事件關鍵字">
+        <button onclick="fetchData()">查詢走勢</button>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="priceChart"></canvas>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>日期</th>
+                <th>黃金價格 (USD)</th>
+                <th>潛在影響事件</th>
+            </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+    </table>
+
+    <script>
+        let priceChart = null;
+
+        // 網頁開啟時自動抓取一次
+        window.onload = fetchData;
+
+        async function fetchData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const keyword = document.getElementById('keyword').value;
+
+            const params = new URLSearchParams();
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+            if (keyword) params.append('keyword', keyword);
+
+            try {
+                // 使用相對路徑呼叫 API
+                const response = await fetch(`/api/gold?${params.toString()}`);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('resultBody');
+                tbody.innerHTML = ''; 
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">此區間查無黃金資料</td></tr>';
+                    if (priceChart) priceChart.destroy();
+                    return;
+                }
+
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.date}</td>
+                        <td class="price-text">$${row.price.toFixed(2)}</td>
+                        <td>${row.event}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                renderChart(data);
+            } catch (e) {
+                console.error("API 連線失敗", e);
+            }
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            if (priceChart) priceChart.destroy();
+
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => d.date),
+                    datasets: [{
+                        label: '黃金價格走勢',
+                        data: data.map(d => d.price),
+                        borderColor: '#FFD700',
+                        backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { ticks: { color: '#888' }, grid: { color: '#333' } },
+                        y: { ticks: { color: '#888' }, grid: { color: '#333' } }
+                    },
+                    plugins: { legend: { labels: { color: '#fff' } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
