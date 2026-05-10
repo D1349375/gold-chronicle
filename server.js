@@ -39,7 +39,7 @@ db.serialize(() => {
 async function syncGoldData() {
     console.log("正在同步黃金歷史數據...");
     try {
-        const url = 'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=2y';
+        const url = 'https://query1.finance.yahoo.com/v8/finance/chart/GC=F?interval=1d&range=10y';
         const response = await fetch(url);
         const data = await response.json();
 
