@@ -76,6 +76,58 @@
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #2a2a2a; }
         th { color: #FFD700; background: #111; }
         .price-text { color: #4CAF50; font-weight: bold; }
+
+        /* ✨ 新增：彈出視窗 (Modal) 的 CSS 設計 ✨ */
+        .modal-overlay {
+            display: none; /* 預設隱藏 */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(5px); /* 背景模糊效果 */
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            background: #1a1a1a;
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid #DAA520;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.8), 0 0 20px rgba(218, 165, 32, 0.2);
+            max-width: 500px;
+            width: 85%;
+            text-align: center;
+            position: relative;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+        /* 當 modal 顯示時的動畫類別 */
+        .modal-overlay.show {
+            display: flex;
+            opacity: 1;
+        }
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            color: #888;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .close-btn:hover { color: #FFD700; }
+        .modal-date { color: #888; font-size: 1.1rem; margin-bottom: 10px; }
+        .modal-price { color: #4CAF50; font-size: 2rem; font-weight: bold; margin: 10px 0 20px 0; font-family: monospace; }
+        .modal-event { color: #fff; font-size: 1.3rem; line-height: 1.6; border-top: 1px solid #333; padding-top: 20px; }
     </style>
 </head>
 <body>
@@ -110,6 +162,15 @@
         <tbody id="resultBody"></tbody>
     </table>
 
+    <div id="eventModal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div class="modal-date" id="modalDate">202X-XX-XX</div>
+            <div class="modal-price" id="modalPrice">$0.00</div>
+            <div class="modal-event" id="modalEvent">載入中...</div>
+        </div>
+    </div>
+
     <script>
         let priceChart = null;
 
@@ -138,7 +199,6 @@
                     return;
                 }
 
-                // --- 前端過濾表格資料 ---
                 const tableData = fullData.filter(row => {
                     const eventText = (row.event || "").toLowerCase();
                     let match = true;
@@ -163,7 +223,6 @@
                     tbody.appendChild(tr);
                 });
 
-                // --- 畫圖表 ---
                 renderChart(fullData, keyword);
             } catch (e) {
                 console.error("API 連線失敗", e);
@@ -174,26 +233,25 @@
             const ctx = document.getElementById('priceChart').getContext('2d');
             if (priceChart) priceChart.destroy();
 
-            // ✨ 唯一修改區域：點點的外觀設計 ✨
             const pointRadii = fullData.map(d => {
                 const eventText = (d.event || "").toLowerCase();
-                if (keyword && eventText.includes(keyword)) return 7;  // 關鍵字命中：大點
-                if (d.event) return 4;                                // 一般事件：中點
-                return 2;                                             // 一般日：小點 (維持可觸碰)
+                if (keyword && eventText.includes(keyword)) return 7;  
+                if (d.event) return 4;                                
+                return 2;                                             
             });
 
             const pointBgColors = fullData.map(d => {
                 const eventText = (d.event || "").toLowerCase();
-                if (keyword && eventText.includes(keyword)) return '#FFFFFF'; // 命中：璀璨白
-                if (d.event) return '#FFD700';                                // 一般事件：亮金
-                return '#5A4D1A';                                             // 一般日：低調暗金 (不刺眼)
+                if (keyword && eventText.includes(keyword)) return '#FFFFFF'; 
+                if (d.event) return '#FFD700';                                
+                return '#5A4D1A';                                             
             });
 
             const pointBorderColors = fullData.map(d => {
                 const eventText = (d.event || "").toLowerCase();
-                if (keyword && eventText.includes(keyword)) return '#DAA520'; // 命中：加一圈金邊
-                if (d.event) return '#121212';                                // 一般事件：加背景色黑邊(增加立體感)
-                return 'transparent';                                         // 一般日：無邊框
+                if (keyword && eventText.includes(keyword)) return '#DAA520'; 
+                if (d.event) return '#121212';                                
+                return 'transparent';                                         
             });
 
             const pointBorderWidths = fullData.map(d => {
@@ -215,7 +273,6 @@
                         borderWidth: 2,
                         fill: true,
                         tension: 0.1,
-                        // 套用新設計的點點參數
                         pointRadius: pointRadii,
                         pointBackgroundColor: pointBgColors,
                         pointBorderColor: pointBorderColors,
@@ -232,6 +289,18 @@
                         mode: 'index',
                         intersect: false,
                     },
+                    // ✨ 新增：點擊圖表事件偵測 ✨
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const dataIndex = elements[0].index;
+                            const clickedData = fullData[dataIndex];
+                            
+                            // 只有當這天「有事件」時，才彈出視窗
+                            if (clickedData.event) {
+                                openModal(clickedData);
+                            }
+                        }
+                    },
                     scales: {
                         x: { ticks: { color: '#888' }, grid: { color: '#333' } },
                         y: { ticks: { color: '#888' }, grid: { color: '#333' } }
@@ -240,16 +309,46 @@
                         legend: { labels: { color: '#fff' } },
                         tooltip: {
                             callbacks: {
-                                // 完美保留原本的 Tooltip 邏輯
                                 afterLabel: function(context) {
                                     const event = fullData[context.dataIndex].event;
-                                    return event ? '事件: ' + event : '';
+                                    // 加入小提示，告訴使用者可以點擊
+                                    return event ? ['事件: ' + event, '(點擊資料點查看詳情)'] : '';
                                 }
                             }
                         }
                     }
                 }
             });
+        }
+
+        // ✨ 修改點：動態渲染事件標題與詳細解說 ✨
+        function openModal(data) {
+            document.getElementById('modalDate').innerText = data.date;
+            document.getElementById('modalPrice').innerText = '$' + data.price.toFixed(2);
+            
+            // 將原本只有標題的內容，升級為「粗體標題 + 段落解說」
+            const eventTitle = `<strong style="color: #FFD700; font-size: 1.2rem; display: block; margin-bottom: 15px;">${data.event}</strong>`;
+            const eventDetail = `<span style="font-size: 1rem; color: #ddd;">${data.detail || '此事件暫無詳細背景說明。'}</span>`;
+            
+            document.getElementById('modalEvent').innerHTML = eventTitle + eventDetail;
+            
+            const modal = document.getElementById('eventModal');
+            modal.style.display = 'flex'; 
+            setTimeout(() => {
+                modal.classList.add('show');
+            }, 10);
+        }
+
+        function closeModal(event) {
+            // 如果有傳入 event (代表是點擊背景)，確認點擊的是不是黑底(overlay)
+            if (event && event.target.id !== 'eventModal') return;
+            
+            const modal = document.getElementById('eventModal');
+            modal.classList.remove('show');
+            // 等待淡出動畫結束後再隱藏
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
         }
     </script>
 </body>
