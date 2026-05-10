@@ -5,16 +5,18 @@ const fs = require('fs');
 const app = express();
 const port = process.env.PORT || 3000;
 
+// 判斷是否在 Azure 環境，決定資料庫儲存路徑
 const isAzure = process.env.WEBSITE_SITE_NAME !== undefined;
 const dbPath = isAzure ? '/home/data/gold_data.db' : './gold_data.db';
 
+// 建立/連線資料庫
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("資料庫連接失敗:", err.message);
     } else {
         console.log(`已連接到 SQLite 資料庫 (${dbPath})`);
-        // ✨ 修改點：資料表新增了 detail 欄位 ✨
-        db.run(`CREATE TABLE IF NOT EXISTS GoldRecords (
+        // ✨ 修改點：換成全新的資料表名稱 GoldRecords_v2 ✨
+        db.run(`CREATE TABLE IF NOT EXISTS GoldRecords_v2 (
             date TEXT UNIQUE,
             price REAL,
             event TEXT,
@@ -29,7 +31,8 @@ app.get('/api/gold', (req, res) => {
     const startDate = req.query.startDate;
     const endDate = req.query.endDate;
 
-    let sql = `SELECT * FROM GoldRecords WHERE 1=1`;
+    // ✨ 修改點：從新表讀取資料 ✨
+    let sql = `SELECT * FROM GoldRecords_v2 WHERE 1=1`;
     let params = [];
 
     if (startDate) {
@@ -65,7 +68,6 @@ async function syncGoldData() {
         let eventsMap = {};
         if (fs.existsSync('./events.json')) {
             const rawEvents = JSON.parse(fs.readFileSync('./events.json', 'utf8'));
-            // ✨ 修改點：把 detail 一起存進記憶體 Map 中 ✨
             rawEvents.forEach(e => {
                 eventsMap[e.date] = { event: e.event, detail: e.detail || "" };
             });
@@ -74,9 +76,9 @@ async function syncGoldData() {
         db.serialize(() => {
             db.run("BEGIN TRANSACTION");
             
-            // ✨ 修改點：寫入時包含 detail 欄位 ✨
-            const insert = db.prepare("INSERT OR IGNORE INTO GoldRecords (date, price, event, detail) VALUES (?, ?, ?, ?)");
-            const update = db.prepare("UPDATE GoldRecords SET event = ?, detail = ? WHERE date = ?");
+            // ✨ 修改點：寫入與更新都指向新表 GoldRecords_v2 ✨
+            const insert = db.prepare("INSERT OR IGNORE INTO GoldRecords_v2 (date, price, event, detail) VALUES (?, ?, ?, ?)");
+            const update = db.prepare("UPDATE GoldRecords_v2 SET event = ?, detail = ? WHERE date = ?");
 
             for (let i = 0; i < timestamps.length; i++) {
                 const dateObj = new Date(timestamps[i] * 1000);
