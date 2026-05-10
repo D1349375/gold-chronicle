@@ -1,6 +1,6 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
-const fs = require('fs'); // 新增：用於讀取 events.json
+const fs = require('fs');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -27,13 +27,32 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // 設定靜態檔案資料夾 (讓伺服器能讀取 index.html 等前端檔案)
 app.use(express.static(__dirname));
 
-// API 路由：提供黃金歷史資料與搜尋功能 (保留你原本的搜尋邏輯)
+// API 路由：提供黃金歷史資料與強大的交叉搜尋功能
 app.get('/api/gold', (req, res) => {
+    // 1. 接收前端傳來的三個參數
     const keyword = req.query.keyword || '';
-    // 支援模糊搜尋 event 欄位
-    const sql = `SELECT * FROM GoldRecords WHERE event LIKE ? ORDER BY date DESC`;
+    const startDate = req.query.startDate;
+    const endDate = req.query.endDate;
+
+    // 2. 建立基礎 SQL 語法（先過濾關鍵字）
+    let sql = `SELECT * FROM GoldRecords WHERE event LIKE ?`;
+    let params = [`%${keyword}%`];
+
+    // 3. 動態疊加時間區間條件
+    if (startDate) {
+        sql += ` AND date >= ?`;
+        params.push(startDate);
+    }
+    if (endDate) {
+        sql += ` AND date <= ?`;
+        params.push(endDate);
+    }
+
+    // 4. 最後加上排序 (ASC 保證圖表從左畫到右，舊到新)
+    sql += ` ORDER BY date ASC`;
     
-    db.all(sql, [`%${keyword}%`], (err, rows) => {
+    // 5. 執行查詢
+    db.all(sql, params, (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -54,7 +73,7 @@ async function syncGoldData() {
         const timestamps = result.timestamp;
         const closePrices = result.indicators.quote[0].close;
 
-        // 2. 讀取剛剛建立的 events.json
+        // 2. 讀取 events.json
         let eventsMap = {};
         if (fs.existsSync('./events.json')) {
             const rawEvents = JSON.parse(fs.readFileSync('./events.json', 'utf8'));
